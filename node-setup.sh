@@ -3,7 +3,7 @@
 # - Installs NVM into /usr/local/nvm (shared)
 # - Installs the latest LTS Node.js and sets it as default
 # - Exposes node/npm/npx/corepack at /usr/local/bin for all users (including future ones)
-# Run as root: sudo bash install_node_lts_systemwide.sh
+# Run as root: sudo bash node-setup.sh
 
 set -euo pipefail
 umask 022
@@ -39,27 +39,46 @@ echo "[3/6] Creating ${NVM_PROFILE} to load NVM for all users..."
 cat > "${NVM_PROFILE}" <<'EOF'
 # /etc/profile.d/nvm.sh - make NVM available system-wide
 export NVM_DIR="/usr/local/nvm"
-# Load nvm and bash_completion if they exist
+
+# If shell has 'nounset' on, temporarily disable to avoid nvm unbound-var issues
+__NVM_RESTORE_NOUNSET=0
+if ( set -o | grep -q 'nounset *on' ); then
+  set +u
+  __NVM_RESTORE_NOUNSET=1
+fi
+
+# Load nvm and completion (if present)
 [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 [ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"
-# Attempt to use the default Node.js without noisy output
+
+# Try to activate default Node silently
 if command -v nvm >/dev/null 2>&1; then
   nvm use --silent default >/dev/null 2>&1 || true
 fi
+
+# Restore nounset if it was originally on
+if [ "${__NVM_RESTORE_NOUNSET}" = "1" ]; then
+  set -u
+fi
+unset __NVM_RESTORE_NOUNSET
 EOF
 chmod 644 "${NVM_PROFILE}"
 
-# Load NVM in this script's environment
+# Load NVM in this script's environment (with nounset disabled around nvm)
 # shellcheck disable=SC1090
+set +u
 . "${NVM_PROFILE}"
+set -u
 
 echo "[4/6] Installing latest LTS Node.js (this may take a moment)..."
+# nvm isn't nounset-safe; disable -u around nvm commands
+set +u
 nvm install --lts
 nvm alias default 'lts/*'
 nvm use --lts
-
-# Determine the default Node bin directory
 NODE_VERSION="$(nvm version default)"
+set -u
+
 NODE_BIN_DIR="${NVM_DIR}/versions/node/${NODE_VERSION}/bin"
 
 echo "[5/6] Linking Node.js tools for all users in /usr/local/bin ..."
@@ -85,8 +104,14 @@ Done ✅
 - Default Node.js (LTS) is active and symlinked into /usr/local/bin:
     node, npm, npx, corepack
 
-Tips:
-- Open a new shell (or re-login) to ensure /etc/profile.d/nvm.sh is loaded.
-- To change Node.js version globally later:
-    sudo bash -lc 'export NVM_DIR=/usr/local/nvm; . $NVM_DIR/nvm.sh; nvm install 20; nvm alias default 20; for b in node npm npx corepack; do ln -sf "$NVM_DIR/versions/node/$(nvm version default)/bin/$b" "/usr/local/bin/$b"; done'
+Notes:
+- This script temporarily disables 'set -u' around NVM calls to avoid the
+  "PROVIDED_VERSION: unbound variable" error in nvm.
+- Open a new shell (or re-login) so /etc/profile.d/nvm.sh is loaded.
+
+Update Node globally later (example):
+  sudo bash -lc 'export NVM_DIR=/usr/local/nvm; . /etc/profile.d/nvm.sh; \
+    set +u; nvm install --lts; nvm alias default lts/*; \
+    v=$(nvm version default); set -u; \
+    for b in node npm npx corepack; do ln -sf "$NVM_DIR/versions/node/$v/bin/$b" "/usr/local/bin/$b"; done'
 NOTE
