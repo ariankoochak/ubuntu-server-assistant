@@ -3,7 +3,7 @@
 set -euo pipefail
 
 if [[ $EUID -ne 0 ]]; then
-  echo "Please run as root (use: sudo ./setup-zsh-all.sh)"
+  echo "Please run as root (use: sudo ./powerlevel10k-setup.sh)"
   exit 1
 fi
 
