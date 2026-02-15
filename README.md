@@ -14,6 +14,9 @@ Tested on **Ubuntu 22.04 / 24.04**.
 * **Node.js LTS via NVM — system-wide for all users (now & future)**
   Guide: [Node/README.md](./Node/README.md)
 
+* **PM2 (Process Manager) — system configuration**
+  Guide: [PM2/README.md](./PM2/README.md)
+
 ---
 
 ## How to use this repo
